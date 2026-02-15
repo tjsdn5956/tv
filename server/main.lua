@@ -148,7 +148,7 @@ RegisterNetEvent("ptelevision:requestUpdate", function()
 end)
 
 -- ============================================================
--- 공통 헬퍼 함수들
+-- nooo8.tv URL 리졸버 - iframe을 직접 브라우저로 재생
 -- ============================================================
 local function ExtractDirectSource(body, base)
     if not body then return nil end
@@ -226,73 +226,6 @@ local function ResolveEmbedToDirect(url, referer, cb)
     end, "GET", "", headers)
 end
 
--- ============================================================
--- tvroom11.org 전용 리졸버 (개선됨)
--- ============================================================
-local function ResolveTvroomUrl(url, cb)
-    if not url or type(url) ~= "string" then
-        cb(nil)
-        return
-    end
-    
-    -- 이미 처리된 URL은 그대로 반환
-    if string.match(url, "%.mp4") or string.match(url, "%.m3u8") then
-        cb(url)
-        return
-    end
-    
-    local headers = {
-        ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        ["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        ["Referer"] = url
-    }
-    
-    print("[ptelevision] 📺 tvroom 1단계: 페이지 분석 중...")
-    
-    -- tvroom 페이지에서 player iframe URL 추출
-    PerformHttpRequest(url, function(statusCode, body, resHeaders)
-        if statusCode ~= 200 or not body then
-            print("[ptelevision] ❌ 1단계 실패: HTTP " .. tostring(statusCode))
-            cb(nil)
-            return
-        end
-        
-        -- HTML 정규화
-        local cleaned = string.gsub(body, "\\/", "/")
-        cleaned = string.gsub(cleaned, "\\u002f", "/")
-        cleaned = string.gsub(cleaned, "&amp;", "&")
-        
-        -- player iframe URL 찾기
-        local playerUrl = string.match(cleaned, '<iframe[^>]+src=["\']([^"\']+player[^"\']+)["\']')
-        
-        if not playerUrl then
-            print("[ptelevision] ❌ player iframe을 찾을 수 없습니다")
-            cb(nil)
-            return
-        end
-        
-        -- 상대 경로 처리
-        if string.sub(playerUrl, 1, 2) == "//" then
-            playerUrl = "https:" .. playerUrl
-        elseif string.sub(playerUrl, 1, 1) == "/" then
-            local base = string.match(url, "^(https?://[^/]+)")
-            playerUrl = base .. playerUrl
-        end
-        
-        print("[ptelevision] ✅ 1단계 완료: player URL 추출")
-        print("[ptelevision] 🔗 Player: " .. playerUrl)
-        print("[ptelevision] 📺 player를 iframe으로 표시 (브라우저 모드)")
-        
-        -- player URL을 브라우저 모드로 반환
-        -- m3u8 추출하지 않고 player iframe을 직접 표시
-        cb({url = playerUrl, mode = "browser"})
-        
-    end, "GET", "", headers)
-end
-
--- ============================================================
--- nooo8.tv 전용 리졸버 (기존 유지)
--- ============================================================
 local function ResolveNooo8Mp4(url, cb)
     if not url or type(url) ~= "string" then
         cb(nil)
@@ -385,9 +318,6 @@ local function ResolveNooo8Mp4(url, cb)
     end, "GET", "", headers)
 end
 
--- ============================================================
--- 메인 URL 리졸버 이벤트
--- ============================================================
 RegisterNetEvent("ptelevision:resolveUrl", function(data, url)
     local _source = source
     if not IsAdmin(_source) then
@@ -402,98 +332,6 @@ RegisterNetEvent("ptelevision:resolveUrl", function(data, url)
     print("[ptelevision] 🔍 URL 리졸빙 시작")
     print("[ptelevision] 📍 입력 URL: " .. url)
     
-    local lower = string.lower(url)
-    
-    -- tvroom 처리
-    if string.find(lower, "tvroom") then
-        print("[ptelevision] 🎬 tvroom 리졸버 사용")
-        
-        ResolveTvroomUrl(url, function(resolved)
-            if resolved then
-                local finalUrl, finalMode
-                
-                -- 리졸버가 테이블(mode 정보 포함)을 반환한 경우
-                if type(resolved) == "table" then
-                    finalUrl = resolved.url
-                    finalMode = resolved.mode or "browser"
-                else
-                    -- 문자열로 반환한 경우 (backward compatibility)
-                    finalUrl = resolved
-                    finalMode = "play"
-                end
-                
-                print("[ptelevision] ✅ URL 리졸빙 성공")
-                print("[ptelevision] 📺 재생 모드: " .. finalMode)
-                print("[ptelevision] 🔗 최종 URL: " .. finalUrl)
-                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                
-                SetTelevision(data.coords, "ptv_status", {
-                    type = finalMode,
-                    url = finalUrl,
-                    time = 0,
-                    state = "playing"
-                }, true)
-                
-                local user_id = vRP.getUserId({_source})
-                if user_id then
-                    vRPclient.notify(_source, {"~g~영상 재생 시작"})
-                end
-            else
-                print("[ptelevision] ❌ URL 리졸빙 실패")
-                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                
-                local user_id = vRP.getUserId({_source})
-                if user_id then
-                    vRPclient.notify(_source, {"~r~영상 URL 추출에 실패했습니다."})
-                end
-            end
-        end)
-        return
-    end
-    
-    -- nooo8.tv 처리
-    if string.find(lower, "nooo8%.tv/") then
-        print("[ptelevision] 🎬 nooo8 리졸버 사용")
-        
-        ResolveNooo8Mp4(url, function(resolved)
-            if not resolved then
-                local user_id = vRP.getUserId({_source})
-                if user_id then
-                    vRPclient.notify(_source, {"~r~영상 URL 추출에 실패했습니다."})
-                end
-                print("[ptelevision] ❌ URL 리졸빙 실패")
-                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                return
-            end
-            
-            local mode = "play"
-            if not (string.match(resolved, "%.mp4") or string.match(resolved, "%.m3u8")) then
-                mode = "browser"
-            end
-            
-            print("[ptelevision] ✅ URL 리졸빙 성공")
-            print("[ptelevision] 📺 재생 모드: " .. mode)
-            print("[ptelevision] 🔗 최종 URL: " .. resolved)
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            
-            SetTelevision(data.coords, "ptv_status", {
-                type = mode,
-                url = resolved,
-                time = 0,
-                state = "playing"
-            }, true)
-            
-            local user_id = vRP.getUserId({_source})
-            if user_id then
-                vRPclient.notify(_source, {"~g~영상 재생 시작"})
-            end
-        end)
-        return
-    end
-    
-    -- 기본 리졸버 (직접 mp4/m3u8 URL이거나 기타 사이트)
-    print("[ptelevision] 🎬 기본 리졸버 사용")
-    
     ResolveNooo8Mp4(url, function(resolved)
         if not resolved then
             local user_id = vRP.getUserId({_source})
@@ -505,9 +343,16 @@ RegisterNetEvent("ptelevision:resolveUrl", function(data, url)
             return
         end
         
-        local mode = "play"
-        if not (string.match(resolved, "%.mp4") or string.match(resolved, "%.m3u8")) then
-            mode = "browser"
+        -- URL 타입에 따라 모드 결정
+        local mode = "browser"  -- 기본값은 브라우저
+        
+        -- 직접 mp4/m3u8 파일이고 임베드 서비스가 아닌 경우만 play 모드
+        if (string.match(resolved, "%.mp4") or string.match(resolved, "%.m3u8")) and
+           not string.match(resolved, "fvideostream") and 
+           not string.match(resolved, "streamtape") and
+           not string.match(resolved, "embed") and
+           not string.match(resolved, "player") then
+            mode = "play"
         end
         
         print("[ptelevision] ✅ URL 리졸빙 성공")
@@ -524,7 +369,11 @@ RegisterNetEvent("ptelevision:resolveUrl", function(data, url)
         
         local user_id = vRP.getUserId({_source})
         if user_id then
-            vRPclient.notify(_source, {"~g~영상 재생 시작"})
+            if mode == "browser" then
+                vRPclient.notify(_source, {"~g~웹 브라우저 모드로 재생"})
+            else
+                vRPclient.notify(_source, {"~g~비디오 플레이어 모드로 재생"})
+            end
         end
     end)
 end)

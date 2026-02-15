@@ -82,11 +82,7 @@ function observeMediaElements() {
 
 function IsDirectMediaUrl(url) {
     if (!url) return false;
-    // .mp4 또는 .m3u8로 끝나거나, 경로에 /m3u8/ 또는 /mp4/가 포함된 경우
-    return /\.mp4(\?|$)/i.test(url) || 
-           /\.m3u8(\?|$)/i.test(url) ||
-           /\/m3u8\//i.test(url) ||
-           /\/mp4\//i.test(url);
+    return /\.mp4(\?|$)/i.test(url) || /\.m3u8(\?|$)/i.test(url);
 }
 
 function GetURLID(link) {
@@ -134,27 +130,14 @@ function SetVideo(video_data) {
     var url = video_data.url;
     var channel = video_data.channel;
     
-    // 서버에서 명시적으로 type을 보낸 경우 우선 사용
-    var data;
-    if (video_data.type) {
-        data = {type: video_data.type, url: url};
-        console.log("[TV] 📡 서버 지정 타입 사용:", video_data.type);
-    } else {
-        // type이 없으면 URL에서 추측
-        data = GetURLID(url);
-        console.log("[TV] 🔍 URL 분석 타입:", data.type);
-    }
-    
-    // "play" 타입은 "file"로 변환
+    // video_data.type이 명시적으로 있으면 그것을 사용, 없으면 URL에서 추측
+    var inferred = GetURLID(url);
+    var data = video_data.type ? {type: video_data.type, url: url} : inferred;
     if (data.type == "play") {
         data.type = "file";
-        console.log("[TV] 🔄 play → file 변환");
     }
-    
-    // browser 타입인데 직접 미디어 URL이면 file로 변환
     if (data.type == "browser" && IsDirectMediaUrl(url)) {
         data.type = "file";
-        console.log("[TV] 🔄 browser → file 변환 (직접 미디어)");
     }
     
     playerData = data
@@ -275,7 +258,7 @@ function SetVideo(video_data) {
         }
         else if (data.type == "browser") {
             // 브라우저 모드: iframe으로 직접 로드
-            console.log("[TV] 🌐 브라우저 모드 로딩:", data.url);
+            console.log("[TV] 브라우저 모드 로딩:", data.url);
             
             // iframe을 동적으로 생성
             var iframe = $('<iframe>', {
@@ -289,31 +272,31 @@ function SetVideo(video_data) {
                     left: '0',
                     width: '100%',
                     height: '100%',
-                    border: 'none',
-                    'background-color': '#000'
+                    border: 'none'
                 }
             });
             
             // iframe 속성 추가
-            iframe.attr('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope');
+            iframe.attr('allow', 'autoplay; fullscreen; picture-in-picture');
+            iframe.attr('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-presentation');
             
             $("#twitch-embed").html(iframe);
             
-            console.log("[TV] ✅ iframe 삽입 완료");
+            console.log("[TV] iframe 삽입 완료");
             
             // iframe 내부 볼륨 조절 시도
             setTimeout(function() {
-                console.log("[TV] 🔊 iframe 볼륨 설정 시도");
+                console.log("[TV] iframe 볼륨 설정 시도");
                 setWebBrowserVolume(webVolume);
             }, 2000);
             
             // iframe 로드 이벤트
             iframe.on('load', function() {
-                console.log("[TV] ✅ iframe 로드 완료");
+                console.log("[TV] iframe 로드 완료");
             });
             
-            iframe.on('error', function(e) {
-                console.error("[TV] ❌ iframe 로드 실패:", e);
+            iframe.on('error', function() {
+                console.error("[TV] iframe 로드 실패");
             });
         }
         
