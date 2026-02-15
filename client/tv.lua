@@ -18,6 +18,10 @@ local function IsResolverTarget(url)
     if string.find(lower, "nooo8%.tv/") then
         return true
     end
+    if string.find(lower, "tvroom11%.org/") then
+        return true
+    end
+
     return false
 end
 
@@ -189,33 +193,51 @@ function OpenTVMenu()
     lib.showMenu('ptelevision-menu')
 end
 
--- ============================================
--- 수정: PlayBrowser가 JavaScript에 메시지 전송
--- ============================================
 function PlayBrowser(data)
-    print("[ptelevision-client] 🌐 PlayBrowser 호출")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print("[ptelevision-client] 🌐 PlayBrowser 호출됨!")
     print("[ptelevision-client] 📍 URL: " .. tostring(data.url))
+    print("[ptelevision-client] 🔍 DUI 객체: " .. tostring(duiObj))
     
-    while not IsDuiAvailable(duiObj) do 
-        print("[ptelevision-client] ⏳ DUI 대기 중...")
-        Wait(10) 
+    if not duiObj then
+        print("[ptelevision-client] ❌ 오류: DUI 객체가 없습니다!")
+        return
     end
     
-    print("[ptelevision-client] ✅ DUI 사용 가능, 메시지 전송 중...")
+    local waitCount = 0
+    while not IsDuiAvailable(duiObj) do 
+        waitCount = waitCount + 1
+        print("[ptelevision-client] ⏳ DUI 대기 중... (" .. waitCount .. ")")
+        Wait(10) 
+        if waitCount > 100 then
+            print("[ptelevision-client] ❌ DUI 타임아웃!")
+            return
+        end
+    end
     
-    -- DEFAULT_URL로 돌아가지 않고 직접 브라우저 모드 메시지 전송
-    SendDuiMessage(duiObj, json.encode({
+    print("[ptelevision-client] ✅ DUI 사용 가능!")
+    
+    local messageData = {
         setVideo = true,
         data = {
             url = data.url,
-            type = "browser"  -- 명시적으로 browser 타입 지정
+            type = "browser"
         }
-    }))
+    }
     
-    print("[ptelevision-client] ✅ 브라우저 모드 메시지 전송 완료")
+    local jsonMessage = json.encode(messageData)
+    print("[ptelevision-client] 📤 전송할 메시지: " .. jsonMessage)
+    
+    SendDuiMessage(duiObj, jsonMessage)
+    
+    print("[ptelevision-client] ✅ 브라우저 모드 메시지 전송 완료!")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 end
 
 function PlayVideo(data)
+    print("[ptelevision-client] ▶️ PlayVideo 호출")
+    print("[ptelevision-client] 📍 URL: " .. tostring(data.url))
+    
     while not IsDuiAvailable(duiObj) do Wait(10) end
     if (getDuiURL() ~= DEFAULT_URL) then 
         waitForLoad = true
@@ -226,6 +248,7 @@ function PlayVideo(data)
         setVideo = true,
         data = data
     }))
+    print("[ptelevision-client] ✅ PlayVideo 메시지 전송 완료")
 end
 
 function ResetDisplay()
@@ -263,26 +286,44 @@ function SetTelevisionLocal(coords, key, value)
 end
 
 RegisterNetEvent("ptelevision:event", function(data, index, key, value) 
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print("[ptelevision-client] 🎯 ptelevision:event 수신!")
+    print("[ptelevision-client] 🔑 key: " .. tostring(key))
+    print("[ptelevision-client] 📊 value type: " .. type(value))
+    if type(value) == "table" then
+        print("[ptelevision-client] 📦 value.type: " .. tostring(value.type))
+        print("[ptelevision-client] 🔗 value.url: " .. tostring(value.url))
+    end
+    
     Televisions = data
     local tvData = Televisions[index]
     local screen = CURRENT_SCREEN
     
+    if not screen then
+        print("[ptelevision-client] ⚠️ CURRENT_SCREEN이 없습니다")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        return
+    end
+    
     -- 볼륨 동기화 처리
     if key == "volume" and screen and #(v3(screen.coords) - v3(tvData.coords)) < 0.001 then
+        print("[ptelevision-client] 🔊 볼륨 이벤트")
         SetVolume(screen.coords, value)
         SetTelevisionLocal(tvData.coords, "start_time", GetGameTimer())
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         return
     end
     
     -- ptv_status 이벤트 처리
     if key == "ptv_status" and screen and #(v3(screen.coords) - v3(tvData.coords)) < 0.001 then 
+        print("[ptelevision-client] 📺 ptv_status 이벤트 처리 시작")
+        
         local tvIndex, tvStatus = GetTelevision(screen.coords)
         if (tvIndex) then 
             local event = value
             
-            print("[ptelevision-client] 📺 ptv_status 이벤트 수신")
-            print("[ptelevision-client] 🎬 타입: " .. tostring(event.type))
-            print("[ptelevision-client] 🔗 URL: " .. tostring(event.url))
+            print("[ptelevision-client] 🎬 event.type: " .. tostring(event.type))
+            print("[ptelevision-client] 🔗 event.url: " .. tostring(event.url))
             
             if (event.type == "play") then 
                 local videoData = { url = event.url }
@@ -290,16 +331,21 @@ RegisterNetEvent("ptelevision:event", function(data, index, key, value)
                     videoData = Channels[event.channel]
                     videoData.channel = event.channel
                 end
-                print("[ptelevision-client] ▶️ PlayVideo 호출")
+                print("[ptelevision-client] ▶️ PlayVideo 호출 예정")
                 PlayVideo(videoData)
             elseif (event.type == "browser") then 
-                print("[ptelevision-client] 🌐 PlayBrowser 호출")
+                print("[ptelevision-client] 🌐 PlayBrowser 호출 예정")
                 PlayBrowser({ url = event.url })
+            else
+                print("[ptelevision-client] ❓ 알 수 없는 타입: " .. tostring(event.type))
             end 
+        else
+            print("[ptelevision-client] ⚠️ tvIndex를 찾을 수 없습니다")
         end
     end
     
     SetTelevisionLocal(tvData.coords, "start_time", GetGameTimer())
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 end)
 
 RegisterNetEvent("ptelevision:broadcast", function(data, index)
