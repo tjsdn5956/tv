@@ -1,0 +1,115 @@
+@font-face {
+    font-family: 'BodyCam';
+    src: url('VCR_OSD_MONO_1.001.ttf') format('truetype')
+}
+  
+* {
+    font-family: BodyCam;
+    color: white;
+    margin: 0;
+    padding: 0;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+#twitch-embed {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    overflow: hidden;
+    z-index: 0;
+    pointer-events: auto;
+}
+
+/* iframe이 전체 화면을 차지하도록 */
+#twitch-embed iframe {
+    position: absolute;
+    width: 100% !important;
+    height: 100% !important;
+    top: 0 !important;
+    left: 0 !important;
+    border: none !important;
+    pointer-events: auto;
+}
+
+#overlay {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1;
+    font-size: 48pt !important;
+    pointer-events: none;
+}
+
+#background {
+    display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    min-height: 100%;
+    background-color: rgb(42, 42, 42);
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    z-index: -2;
+    pointer-events: none;
+}
+
+#tv-container {
+    display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    min-height: 100%;
+    background-color: transparent;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    pointer-events: none;
+}
+
+#tv-container.notify {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    min-height: 100%;
+}
+
+#tv-container > div {
+    font-size: 24pt;
+    user-select: none;
+}
+
+#tv-container > div.notify {
+    font-size: 24pt;
+    user-select: none;
+    width: -webkit-fill-available;
+    text-align: center;
+    padding: 25px;
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* width */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+    background: rgb(42, 42, 42);
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+    background: rgb(66, 66, 66); 
+}
